@@ -44,6 +44,7 @@ def install_fourth_order(trainer, *, rank, strength, dropout, factor_l2):
     original_init = cls.__init__
     original_forward = cls.forward
     original_regularization = cls.third_regularization
+    original_warm_start = getattr(cls, "load_hofm3_state", None)
     live_models = weakref.WeakSet()
     optimizer_matched = {"count": 0}
 
@@ -69,6 +70,10 @@ def install_fourth_order(trainer, *, rank, strength, dropout, factor_l2):
             # A frozen HOFM3 parent checkpoint lacks the new quartic tensors.
             # Supply ONLY missing fourth-order tensors; no HOFM3 parameter
             # names are modified. A saved HOFM4 state keeps its real weights.
+            # load_hofm3_state temporarily hides this new branch while
+            # validating the *parent* HOFM3 model's exact key set.
+            if "fourth_order" not in module._modules:
+                return
             for key, tensor in module.fourth_order.state_dict().items():
                 target = prefix + "fourth_order." + key
                 if target not in state_dict:
@@ -93,6 +98,32 @@ def install_fourth_order(trainer, *, rank, strength, dropout, factor_l2):
                 positive, negative)
         return result
 
+    def warm_start_hofm3_into_hofm4(self, source, *args, **kwargs):
+        """Load ONLY pretrained HOFM3 tensors using the parent's strict loader.
+
+        The upstream load_hofm3_state validates missing/unexpected keys
+        *itself*, after calling load_state_dict. A state_dict pre-hook alone
+        therefore cannot guarantee compatibility. Temporarily hide just the
+        newly initialized quartic child from both target and (when relevant)
+        source model so the upstream HOFM3 key comparison is exact. Restore
+        the same modules even if the upstream warm-start raises.
+        """
+        if original_warm_start is None:
+            raise RuntimeError("Installed HOFM3 trainer has no warm-start method")
+        if "fourth_order" not in self._modules:
+            raise RuntimeError("HOFM4 quartic parameters not initialized")
+        quartic = self._modules.pop("fourth_order")
+        source_quartic = None
+        if (source is not self and isinstance(source, torch.nn.Module)
+                and "fourth_order" in source._modules):
+            source_quartic = source._modules.pop("fourth_order")
+        try:
+            return original_warm_start(self, source, *args, **kwargs)
+        finally:
+            self._modules["fourth_order"] = quartic
+            if source_quartic is not None:
+                source._modules["fourth_order"] = source_quartic
+
     # Fail closed if the actual optimizer includes the HOFM3 embeddings but
     # excludes the new fourth-order parameters. No silent untrained "HOFM4".
     opt_class = torch.optim.Optimizer
@@ -116,6 +147,8 @@ def install_fourth_order(trainer, *, rank, strength, dropout, factor_l2):
     cls.__init__ = init_hofm4
     cls.forward = forward_hofm4
     cls.third_regularization = regularize_hofm4
+    if callable(original_warm_start):
+        cls.load_hofm3_state = warm_start_hofm3_into_hofm4
     cls._hofm4_installed = True
     opt_class.__init__ = checked_optimizer_init
     return optimizer_matched
