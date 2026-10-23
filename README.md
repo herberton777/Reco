@@ -79,6 +79,24 @@ A saved checkpoint or process exit never creates an invented NDCG score.
 
 See [HOFM experiment tracking](docs/HOFM_EXPERIMENT_TRACKING.md).
 
+### LambdaRank reranking for MovieLens 32M
+
+A standalone **LightGBM LambdaRank** stage accepts frozen `score_*`
+predictions from HOFM3 + JointBCD, BPR, Temporal FM, DeepFM and other models.
+It trains independent per-model rerankers and an optional score-stacked
+ensemble, evaluating all models on the **same candidate pools**. Leakage
+guards enforce disjoint decision/query IDs and a documented protocol.
+Measured baseline and reranked NDCG@K results can be imported into the
+SQLite dashboard; no benchmark is seeded without evaluated predictions.
+
+```bash
+python -m src.lambdarank_rerank --help
+```
+
+See [LambdaRank reranking](docs/LAMBDARANK_RERANKING.md) for the score
+export schema, exact candidate joins, chronological holdout manifest and
+the complete training/experiment command.
+
 ## Research questions
 
 1. How much do collaborative factors improve full-catalogue top-K recommendation over popularity?
