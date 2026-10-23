@@ -80,7 +80,7 @@ CREATE INDEX IF NOT EXISTS ix_metrics_name ON metrics(metric, k);
 """
 
 RATE_METRICS = {"ndcg", "recall", "precision", "map", "mrr", "hit_rate", "catalog_coverage"}
-METRIC_PATTERN = re.compile(r"^([a-z][a-z0-9_]*)(?:@(\\d+))?$")
+METRIC_PATTERN = re.compile(r"^([a-z][a-z0-9_]*)(?:@(\d+))?$")
 
 
 def _canonical(value):
