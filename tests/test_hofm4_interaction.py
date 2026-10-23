@@ -102,3 +102,80 @@ def test_fourth_order_input_validation():
         bcd = torch.randn(2, 15)
         bcd[0, 1] = float("nan")
         module(u, i, bcd)
+
+
+
+def test_warmstart_preserves_new_quartic_parameters_with_upstream_strict_check(monkeypatch):
+    """Regression: original trainer rejects missing fourth_order.* keys."""
+    class StrictParent(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.user = nn.Embedding(12, 7)
+            self.movie = nn.Embedding(20, 7)
+            self.bcd_linear = nn.Linear(15, 1)
+
+        def forward(self, batch, bcd):
+            return (self.user(batch["user"]) * self.movie(batch["item"])).sum(-1)
+
+        def third_regularization(self, positive, negative, coefficient=0.0):
+            return self.user(positive["user"]).square().mean() * coefficient
+
+        def load_hofm3_state(self, source):
+            state = source.state_dict() if isinstance(source, nn.Module) else source
+            missing, unexpected = self.load_state_dict(state, strict=False)
+            if missing or unexpected:
+                raise ValueError(
+                    f"HOFM3 warm-start mismatch: missing={missing}, "
+                    f"unexpected={unexpected}")
+
+    # Create an old HOFM3 instance before installing the HOFM4 class patch.
+    old = StrictParent()
+    with torch.no_grad():
+        old.user.weight.fill_(0.23)
+        old.movie.weight.fill_(0.31)
+    original_optimizer_init = torch.optim.Optimizer.__init__
+    try:
+        ns = SimpleNamespace(UnifiedHOFM3BCD=StrictParent)
+        install_fourth_order(ns, rank=8, strength=1.0,
+                             dropout=0.2, factor_l2=0.002)
+        target = StrictParent()
+        quartic_before = {
+            k: v.detach().clone()
+            for k, v in target.fourth_order.state_dict().items()
+        }
+        # The exact error in the user's screenshot occurs without this fix.
+        target.load_hofm3_state(old)
+        assert torch.equal(target.user.weight, old.user.weight)
+        assert torch.equal(target.movie.weight, old.movie.weight)
+        assert all(
+            torch.equal(target.fourth_order.state_dict()[k], v)
+            for k, v in quartic_before.items()
+        )
+        assert "fourth_order" in target._modules
+        # A second HOFM4 model is also a valid HOFM3 warm-start source:
+        # it must NOT import quartic parameters as pretrained HOFM3 data.
+        second = StrictParent()
+        second_quartic = {
+            k: v.detach().clone()
+            for k, v in second.fourth_order.state_dict().items()
+        }
+        second.load_hofm3_state(target)
+        assert all(
+            torch.equal(second.fourth_order.state_dict()[k], v)
+            for k, v in second_quartic.items()
+        )
+        assert "fourth_order" in target._modules
+        assert "fourth_order" in second._modules
+
+        # On genuinely incompatible parent tensors, still fail closed,
+        # while restoring the fourth-order module after the failure.
+        bad = {"user.weight": torch.ones_like(old.user.weight)}
+        with pytest.raises(ValueError, match="warm-start mismatch"):
+            target.load_hofm3_state(bad)
+        assert "fourth_order" in target._modules
+        assert all(
+            torch.equal(target.fourth_order.state_dict()[k], v)
+            for k, v in quartic_before.items()
+        )
+    finally:
+        monkeypatch.setattr(torch.optim.Optimizer, "__init__", original_optimizer_init)
