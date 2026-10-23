@@ -237,8 +237,15 @@ def _manifest(path):
 
 def _ranker(train, valid, columns, args):
     import lightgbm as lgb
+    # Suppress built-in NDCG when a retrieved pool might omit known positives:
+    # its per-query ideal ranking would otherwise exclude unretrieved positives.
+    # Validate against total_relevant instead, so misses score zero.
+    def validation_ndcg(y_true, y_pred, weight=None, group=None):
+        result = ranking_metrics(valid, y_pred, args.k)
+        return (f"end_to_end_ndcg_at_{args.k}", result[f"ndcg@{args.k}"], True)
+
     ranker = lgb.LGBMRanker(
-        objective="lambdarank", metric="ndcg", n_estimators=args.trees,
+        objective="lambdarank", metric="None", n_estimators=args.trees,
         learning_rate=args.lr, num_leaves=args.leaves,
         max_depth=-1, min_child_samples=args.min_leaf,
         reg_lambda=args.l2, reg_alpha=args.l1,
@@ -248,7 +255,7 @@ def _ranker(train, valid, columns, args):
     ranker.fit(
         train[columns], train["label"].to_numpy(dtype="int8"), group=_groups(train),
         eval_set=[(valid[columns], valid["label"].to_numpy(dtype="int8"))],
-        eval_group=[_groups(valid)], eval_metric="ndcg", eval_at=[args.k],
+        eval_group=[_groups(valid)], eval_metric=validation_ndcg, eval_at=[args.k],
         callbacks=[lgb.early_stopping(args.early_stop, first_metric_only=True,
                                       verbose=False)],
     )
