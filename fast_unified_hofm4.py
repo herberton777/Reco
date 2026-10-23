@@ -102,7 +102,8 @@ def install_fourth_order(trainer, *, rank, strength, dropout, factor_l2):
         original_optimizer_init(opt, *args, **kwargs)
         present = {id(p) for g in opt.param_groups for p in g["params"]}
         for model in list(live_models):
-            base = {id(model.user.weight), id(model.movie.weight)}
+            base = {id(param) for name, param in model.named_parameters()
+                    if not name.startswith("fourth_order.")}
             if not (base & present):
                 continue
             optimizer_matched["count"] += 1
