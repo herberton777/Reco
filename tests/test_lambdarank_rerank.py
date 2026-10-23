@@ -174,3 +174,37 @@ def test_manifest_provenance_required(tmp_path):
     )
     with pytest.raises(ValueError, match="test_untouched"):
         experiment(p)
+
+def test_evaluation_counts_missing_retrieved_positive_as_zero(tmp_path):
+    """A retrieval miss must NOT be removed from evaluation query cohort."""
+    frame = pd.DataFrame({
+        "query_id": ["hit", "hit", "miss", "miss"],
+        "item_id": ["a", "b", "a", "b"],
+        "label": [1, 0, 0, 0],
+        "total_relevant": [1, 1, 1, 1],
+        "score_hofm3": [2.0, 1.0, 2.0, 1.0],
+    })
+    file = tmp_path / "retrieval.csv"
+    frame.to_csv(file, index=False)
+    with pytest.raises(ValueError, match="Training queries"):
+        load_candidates(file)
+    loaded = load_candidates(file, allow_missing_positive=True)
+    measured = ranking_metrics(loaded, loaded["score_hofm3"].to_numpy(), k=1)
+    assert measured["queries_evaluated"] == 2
+    assert measured["ndcg@1"] == pytest.approx(0.5)
+    assert measured["recall@1"] == pytest.approx(0.5)
+    assert measured["hit_rate@1"] == pytest.approx(0.5)
+    bad = frame.drop(columns=["total_relevant"])
+    bad.to_csv(file, index=False)
+    with pytest.raises(ValueError, match="total_relevant"):
+        load_candidates(file, allow_missing_positive=True)
+
+
+def test_total_relevant_consistent_with_labels(tmp_path):
+    frame = _frame("valid", n_queries=3)
+    frame["total_relevant"] = 1
+    frame.loc[0, "total_relevant"] = 2
+    file = tmp_path / "inconsistent.csv"
+    frame.to_csv(file, index=False)
+    with pytest.raises(ValueError, match="constant"):
+        load_candidates(file, allow_missing_positive=True)
