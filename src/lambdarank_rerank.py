@@ -85,8 +85,9 @@ def join_scores(base_path, score_sources, output):
     base = _keys(_read(base_path))
     if not score_sources:
         raise ValueError("Provide at least one --score MODEL=PATH")
-    if not set(base.columns).issubset(REQUIRED | {c for c in base if c.startswith("feature_")}):
-        raise ValueError("Base table must contain only query_id,item_id,label,feature_*")
+    allowed = REQUIRED | {"total_relevant"} | {c for c in base if c.startswith("feature_")}
+    if not set(base.columns).issubset(allowed):
+        raise ValueError("Base table must contain query_id,item_id,label,total_relevant,feature_* only")
     base_index = pd.MultiIndex.from_frame(base[["query_id", "item_id"]])
     for spec in score_sources:
         if "=" not in spec:
@@ -111,14 +112,14 @@ def join_scores(base_path, score_sources, output):
     return _write(base, output)
 
 
-def load_candidates(path):
+def load_candidates(path, *, allow_missing_positive=False):
     frame = _keys(_read(path))
     if "label" not in frame:
         raise ValueError("label required")
     feature_columns = sorted(c for c in frame if c.startswith("score_") or c.startswith("feature_"))
     if not any(c.startswith("score_") for c in feature_columns):
         raise ValueError("Supply at least one frozen score_<model> column")
-    extra = set(frame) - REQUIRED - set(feature_columns)
+    extra = set(frame) - REQUIRED - {"total_relevant"} - set(feature_columns)
     if extra:
         raise ValueError("Unsupported columns (possible leakage): " + ", ".join(sorted(extra)))
     if any(not MODEL_PATTERN.fullmatch(col) for col in feature_columns):
@@ -127,15 +128,33 @@ def load_candidates(path):
     if not labels.isin([0, 1]).all():
         raise ValueError("Binary observed-positive labels (0/1) required")
     frame["label"] = labels.astype("int8")
+    if "total_relevant" in frame:
+        counts = pd.to_numeric(frame["total_relevant"], errors="coerce")
+        if (counts.isna().any() or not np.isfinite(counts).all()
+                or (counts < 1).any() or (counts != np.floor(counts)).any()):
+            raise ValueError("total_relevant must be a positive integer per query")
+        frame["total_relevant"] = counts.astype("int64")
     for col in feature_columns:
         frame[col] = pd.to_numeric(frame[col], errors="raise")
         if not np.isfinite(frame[col].to_numpy(dtype="float64")).all():
             raise ValueError("Non-finite score or feature in " + col)
     frame = frame.sort_values(["query_id", "item_id"], kind="stable").reset_index(drop=True)
     groups = frame.groupby("query_id", sort=False)["label"].agg(["size", "sum"])
-    if (groups["size"] < 2).any() or (groups["sum"] < 1).any() or (
-            groups["sum"] >= groups["size"]).any():
-        raise ValueError("Every query needs >=2 candidates, >=1 positive and >=1 unlabeled item")
+    if (groups["size"] < 2).any():
+        raise ValueError("Every query needs at least two candidate items")
+    if not allow_missing_positive and (
+            (groups["sum"] < 1).any() or (groups["sum"] >= groups["size"]).any()):
+        raise ValueError("Training queries need >=1 positive and >=1 unlabeled item")
+    if "total_relevant" in frame:
+        relevant_counts = frame.groupby("query_id", sort=False)["total_relevant"].agg(
+            ["min", "max", "first"])
+        if (relevant_counts["min"] != relevant_counts["max"]).any():
+            raise ValueError("total_relevant must be constant within each query")
+        if (relevant_counts["first"] < groups["sum"]).any():
+            raise ValueError("total_relevant cannot be smaller than positive candidates")
+    elif (groups["sum"] == 0).any():
+        raise ValueError(
+            "Queries with no retrieved positives need total_relevant so misses are counted")
     return frame
 
 
@@ -176,10 +195,14 @@ def ranking_metrics(frame, scores, k=10):
         gains = labels[top].astype("float64")
         weights = 1 / np.log2(np.arange(2, len(top) + 2))
         dcg = float(np.dot(gains, weights))
-        ideal_size = min(int(labels.sum()), k)
+        actual_total = (int(block["total_relevant"].iat[0])
+                        if "total_relevant" in block else int(labels.sum()))
+        if actual_total < 1:
+            raise ValueError("Cannot score a query without known total relevant items")
+        ideal_size = min(actual_total, k)
         ideal = float((1 / np.log2(np.arange(2, ideal_size + 2))).sum())
         ndcg.append(dcg / ideal)
-        recall.append(float(gains.sum() / labels.sum()))
+        recall.append(float(gains.sum() / actual_total))
         hit.append(float(gains.sum() > 0))
         offset += int(size)
     return {
@@ -289,7 +312,9 @@ def experiment(args):
     """Fit one reranker per base model plus optional multi-model ensemble."""
     manifest = _manifest(args.manifest)
     train_path, valid_path, test_path = map(Path, (args.train, args.valid, args.test))
-    train, valid, test = [load_candidates(p) for p in (train_path, valid_path, test_path)]
+    train = load_candidates(train_path)
+    valid = load_candidates(valid_path, allow_missing_positive=True)
+    test = load_candidates(test_path, allow_missing_positive=True)
     features = ensure_split_integrity(train, valid, test)
     scores = [c for c in features if c.startswith("score_")]
     metadata = [c for c in features if c.startswith("feature_")]
@@ -337,7 +362,10 @@ def experiment(args):
             "validation": after_valid, "test": after,
             "model_file": str(model_file),
         }
-        pred = test[["query_id", "item_id", "label"]].copy()
+        columns_to_export = ["query_id", "item_id", "label"]
+        if "total_relevant" in test:
+            columns_to_export.append("total_relevant")
+        pred = test[columns_to_export].copy()
         pred["lambdarank_score"] = test_predictions
         _write(pred, output / ("predictions_" + name + ".csv"))
         if name != "ensemble":
