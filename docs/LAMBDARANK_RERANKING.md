@@ -49,6 +49,7 @@ Each contains one row per **query and candidate** with columns:
 | `query_id` | Unique recommendation decision ID, e.g. user + timestamp + holdout stage |
 | `item_id` | Candidate movie ID |
 | `label` | Binary held-out observed positive (1) or unlabeled/other candidate (0) |
+| `total_relevant` | Optional if all positives are present; required when any known positive was not retrieved (same positive count repeated across each query's candidate rows) |
 | `score_hofm3` | Frozen HOFM3/JointBCD score available at this decision |
 | `score_bpr` | Frozen BPR score for the **same** query/movie |
 | `score_temporal_fm` | Optional frozen Temporal FM score |
@@ -60,7 +61,12 @@ All three files must contain the **same feature/score columns**. Query IDs
 must not overlap between train/validation/test. Different chronological
 requests from the *same user* need distinct query IDs. Every query must have
 at least two candidates, at least one positive, and at least one unlabeled
-candidate; duplicate (query_id,item_id) pairs are rejected.
+candidate in **ranker training**; duplicate (query_id,item_id) pairs are rejected.
+Validation and test may include queries with **zero retrieved positives** when
+`total_relevant` is provided, so missed positives count as NDCG/Recall **zero**
+instead of silently disappearing from the test cohort. Set `total_relevant`
+to the actual number of held-out relevant items for that query; it is never
+given to the ranking model as an input feature.
 
 Rows are sorted and passed with true query-group sizes to LightGBM.
 
@@ -74,7 +80,8 @@ you are required to certify it in the manifest.
 ### Score-table join utility
 
 If each model exports only `query_id,item_id,score`, prepare one base file
-with `query_id,item_id,label` and any `feature_*` columns. Combine scores
+with `query_id,item_id,label`, optionally `total_relevant`,
+and any `feature_*` columns. Combine scores
 by **exactly matching keys**; mismatches, duplicates and missing scores fail:
 
 ```bash
@@ -158,8 +165,10 @@ booster, not untrusted pickle), test prediction CSV, baseline metric report,
 and LambdaRank test report. The `ensemble` variant uses **all selected
 frozen scores** plus the same historical metadata features.
 
-Early stopping uses **validation NDCG@K**, and test is evaluated only after
-fitting. Hyperparameters are controlled on validation, not test.
+Early stopping uses **validation NDCG@K including unretrieved positives**,
+computed against each query's total relevant count when present. Test is
+evaluated only after fitting. Hyperparameters are controlled on validation,
+not test.
 
 Run reports and metrics are imported into the same experiment SQLite database
 with a **specific protocol ID**. The dashboard at port 8502 then shows
