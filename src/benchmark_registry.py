@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS training_attempts (
   working_directory TEXT NOT NULL,
   started_at_utc TEXT NOT NULL,
   finished_at_utc TEXT,
-  status TEXT NOT NULL CHECK(status IN ('running','completed','failed','interrupted')),
+  status TEXT NOT NULL CHECK(status IN ('running','completed','failed','interrupted','imported')),
   exit_code INTEGER,
   git_commit TEXT,
   configuration_json TEXT NOT NULL DEFAULT '{}'
