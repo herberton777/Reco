@@ -53,6 +53,22 @@ MovieLens 32M/literature runs. The database is generated locally (and ignored
 by Git), while the schema, importer, tests, and documentation are versioned.
 See [Benchmark registry](docs/BENCHMARK_REGISTRY.md).
 
+### Visual benchmark dashboard
+
+A standalone, **read-only Streamlit dashboard** visualizes evaluation runs
+and tracked training attempts from `artifacts/benchmarks.sqlite`. It includes
+protocol-scoped NDCG/Recall leaderboards, charts, run and hyperparameter
+details, and the full model/dataset catalog. No trained recommender model is
+required to open it.
+
+```bash
+streamlit run benchmark_dashboard.py --server.address 0.0.0.0 --server.port 8502
+```
+
+Open forwarded port **8502** in Codespaces and keep its visibility **Private**
+(the database can contain research metadata). See the
+[dashboard guide](docs/BENCHMARK_DASHBOARD.md) for setup and interpretation.
+
 ### MovieLens 32M / HOFM experiment tracking
 
 The registry also tracks HOFM training attempts independently of accuracy results.
@@ -85,7 +101,8 @@ See [Model card](reports/MODEL_CARD.md) and [Research status](docs/RESEARCH_STAT
 ## Repository layout
 
 ```text
-app.py                    Streamlit known-user, cold-start, benchmark demo
+app.py                    Streamlit known-user, cold-start, baseline demo
+benchmark_dashboard.py    Read-only SQLite experiment leaderboard UI
 src/                      Reproducible MovieLens Small implementations
 tests/                    Data-free synthetic regression tests
 notebooks/                Exploratory and evaluation notebooks
