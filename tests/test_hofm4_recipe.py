@@ -47,3 +47,8 @@ def test_self_test_cli_documented_in_training_command():
     result = execute("--help")
     assert result.returncode == 0
     assert "train_hofm4_jointbcd.sh" in result.stdout
+
+def test_hofm4_python_sources_compile_without_torch_import():
+    for relative in ("src/hofm4_interaction.py", "fast_unified_hofm4.py"):
+        path = ROOT / relative
+        compile(path.read_text(encoding="utf-8"), str(path), "exec")
