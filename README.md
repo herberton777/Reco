@@ -79,6 +79,23 @@ A saved checkpoint or process exit never creates an invented NDCG score.
 
 See [HOFM experiment tracking](docs/HOFM_EXPERIMENT_TRACKING.md).
 
+### Aggressive HOFM3 / JointBCD: 80-epoch experiment
+
+A new, independent recipe tests **aggressive dropout, L1/L2, third-order
+penalties and AdamW regularization** across 80 epochs on the MovieLens 32M
+research installation. It preserves earlier runs, uses a new checkpoint
+label and records attempts in the SQLite experiment registry.
+
+```bash
+bash scripts/train_hofm3_aggressive80.sh --dry-run
+bash scripts/train_hofm3_aggressive80.sh
+```
+
+The second command **starts training** and requires the existing research
+patches and pretrained parent checkpoint in your Codespace. See the
+[80-epoch recipe](docs/AGGRESSIVE_HOFM3_80_EPOCHS.md) for hyperparameter
+deltas and safety notes. It does not claim to improve NDCG before evaluation.
+
 ### LambdaRank reranking for MovieLens 32M
 
 A standalone **LightGBM LambdaRank** stage accepts frozen `score_*`
