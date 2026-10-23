@@ -27,6 +27,7 @@ MODEL_CATALOG = [
     ("temporal_fm", "Temporal FM", "factorization machine", "ranking", "archived prototype"),
     ("hofm3", "Third-order HOFM", "higher-order factorization", "ranking", "archived prototype"),
     ("hofm3_semi25_jointbcd", "HOFM3 Semi25 Joint BCD", "higher-order factorization", "ranking", "research proposal"),
+    ("hofm4_jointbcd", "HOFM4 + JointBCD", "fourth-order factorization", "ranking", "experimental training recipe"),
     ("tiger", "TIGER-inspired generative retrieval", "generative retrieval", "retrieval", "archived prototype"),
 ]
 DATASETS = [
