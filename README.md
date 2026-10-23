@@ -53,6 +53,16 @@ MovieLens 32M/literature runs. The database is generated locally (and ignored
 by Git), while the schema, importer, tests, and documentation are versioned.
 See [Benchmark registry](docs/BENCHMARK_REGISTRY.md).
 
+### MovieLens 32M / HOFM experiment tracking
+
+The registry also tracks HOFM training attempts independently of accuracy results.
+Existing checkpoint folders can be indexed **without retraining**, while new
+runs can be launched through `python -m src.hofm_experiments run`. Verified
+evaluation JSON reports can later be attached to the corresponding attempt.
+A saved checkpoint or process exit never creates an invented NDCG score.
+
+See [HOFM experiment tracking](docs/HOFM_EXPERIMENT_TRACKING.md).
+
 ## Research questions
 
 1. How much do collaborative factors improve full-catalogue top-K recommendation over popularity?
