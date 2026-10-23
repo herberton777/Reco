@@ -234,10 +234,11 @@ def _ranker(train, valid, columns, args):
 
 def _record_report(output_path, dataset, protocol, model_id, model_name, metrics,
                    train_path, valid_path, test_path, features, args, best_iteration,
-                   manifest_path, notes):
+                   manifest_path, notes, manifest_query_is_user=False):
     """Save immutable measured report to disk; optional import occurs afterwards."""
     if not MODEL_PATTERN.fullmatch(model_id):
         raise ValueError("Invalid model id: " + model_id)
+    query_count = metrics.pop("queries_evaluated")
     committed = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
                                text=True, check=False)
     report = {
@@ -250,7 +251,9 @@ def _record_report(output_path, dataset, protocol, model_id, model_name, metrics
         },
         "dataset": dataset, "protocol": protocol, "evaluation_split": "test",
         "source_type": "measured", "source_uri": str(output_path.resolve()),
-        "sample_users": metrics.pop("queries_evaluated"),
+        # A query is not necessarily a unique user (one user may have multiple
+        # chronologically distinct ranking requests). Do not mislabel query counts.
+        "sample_users": query_count if manifest_query_is_user else None,
         "seed": args.seed,
         "git_commit": committed.stdout.strip() if committed.returncode == 0 else None,
         "config": {
@@ -265,6 +268,7 @@ def _record_report(output_path, dataset, protocol, model_id, model_name, metrics
                 "test": _sha256(test_path), "manifest": _sha256(manifest_path),
             },
             "query_definition": "query_id; per-query rank within supplied candidate pool",
+            "test_query_count": query_count,
         },
         "notes": notes,
         "metrics": metrics,
@@ -348,6 +352,7 @@ def experiment(args):
                 baseline_id, name + " frozen baseline", dict(baseline),
                 train_path, valid_path, test_path, [score], args, None,
                 args.manifest, "Baseline: frozen score ranked on exactly the same test candidate sets.",
+                manifest_query_is_user=manifest.get("query_id_is_user") is True,
             )
             report_paths.append(baseline_path)
         report_path = output / ("report_lambdarank_" + name + ".json")
@@ -357,6 +362,7 @@ def experiment(args):
             train_path, valid_path, test_path, cols, args, ranker.best_iteration_,
             args.manifest, "Stage-2 reranker: fitted on train queries, early stopped on "
                            "validation queries, evaluated on held-out test queries.",
+            manifest_query_is_user=manifest.get("query_id_is_user") is True,
         )
         report_paths.append(report_path)
     (output / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
