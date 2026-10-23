@@ -9,7 +9,7 @@ from .evaluation import evaluate_models, union_seen
 
 
 def run(data_dir="data", output_dir="artifacts", neural=False, epochs=4,
-        no_ranker=False, k=10, rank=48):
+        no_ranker=False, k=10, rank=48, registry_db=None):
     ratings, movies = ensure_dataset(data_dir)
     splits = chronological_split(ratings)
     print(f"Positive events train={len(splits.train):,}, rank={len(splits.rank_train):,}, "
@@ -36,7 +36,13 @@ def run(data_dir="data", output_dir="artifacts", neural=False, epochs=4,
         "catalog_size": len(movies), "k": k,
         "validation": valid, "test": test,
     }
-    (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    metrics_path = out / "metrics.json"
+    metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    if registry_db is not None:
+        from .benchmark_registry import connect, import_baseline
+        with connect(registry_db) as db:
+            imported_ids = import_baseline(db, metrics_path)
+        print(f"Registered {len(imported_ids)} validation/test model runs in {registry_db}")
     print("\nTest results (full catalogue, one held-out positive/user):")
     for name, data in test.items():
         print(f"{name:12s} Recall@{k}={data['recall_at_k']}  "
@@ -54,5 +60,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-ranker", action="store_true", help="Skip LightGBM LambdaMART")
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--rank", type=int, default=48, help="SVD factor dimension")
+    parser.add_argument("--registry-db", default=None,
+                        help="Optional SQLite benchmark database to auto-register results")
     args = parser.parse_args()
     run(**vars(args))
