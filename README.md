@@ -36,6 +36,23 @@ Other entry points:
 | 'python -m src.semantic' | Add title/genre embeddings to a trained model |
 | 'python -m src.benchmark_semantic' | Evaluate semantic models with the existing holdout |
 
+## Experiment benchmark registry
+
+A provenance-aware SQLite registry keeps models, datasets, evaluation protocols,
+hyperparameters, run metadata, and actual NDCG/Recall/Coverage results together
+without inventing scores or mixing incompatible evaluations.
+
+```bash
+python -m src.train --no-ranker --registry-db artifacts/benchmarks.sqlite
+python -m src.benchmark_registry leaderboard --dataset ml-latest-small \
+  --protocol ml-small-per-user-3-fullcatalog-v1 --metric ndcg --k 10
+```
+
+You can also import existing `artifacts/metrics.json` or externally verified
+MovieLens 32M/literature runs. The database is generated locally (and ignored
+by Git), while the schema, importer, tests, and documentation are versioned.
+See [Benchmark registry](docs/BENCHMARK_REGISTRY.md).
+
 ## Research questions
 
 1. How much do collaborative factors improve full-catalogue top-K recommendation over popularity?
