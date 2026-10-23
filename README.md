@@ -79,6 +79,26 @@ A saved checkpoint or process exit never creates an invented NDCG score.
 
 See [HOFM experiment tracking](docs/HOFM_EXPERIMENT_TRACKING.md).
 
+### HOFM4 + JointBCD: true fourth-order factorization
+
+`fast_unified_hofm4.py` extends the pretrained HOFM3/JointBCD model with a
+new **learnable, exact fourth-order ANOVA FM** over user, movie and 15
+temporal preference fields. The existing HOFM3 scoring path is preserved,
+while quartic parameters receive their own regularization. A separate
+80-epoch recipe, run label and `hofm4_jointbcd` model ID keep existing
+HOFM3 checkpoints and leaderboard results independent.
+
+```bash
+python fast_unified_hofm4.py --self-test
+bash scripts/train_hofm4_jointbcd.sh --dry-run
+bash scripts/train_hofm4_jointbcd.sh
+```
+
+This extension requires the advanced HOFM3 research patches installed in
+your Codespace; the core trainer is **not** a standalone, CI-integrated
+package on fresh clone. See the
+[HOFM4 + JointBCD architecture and training guide](docs/HOFM4_JOINTBCD.md).
+
 ### Aggressive HOFM3 / JointBCD: 80-epoch experiment
 
 A new, independent recipe tests **aggressive dropout, L1/L2, third-order
