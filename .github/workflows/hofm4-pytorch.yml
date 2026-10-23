@@ -1,0 +1,29 @@
+name: hofm4-pytorch-tests
+
+on:
+  pull_request:
+    paths:
+      - fast_unified_hofm4.py
+      - src/hofm4_interaction.py
+      - tests/test_hofm4_interaction.py
+      - .github/workflows/hofm4-pytorch.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quartic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CPU-only PyTorch and test dependencies
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install numpy pytest
+      - name: Test fourth-order gradients and HOFM3 warm-start
+        run: python -m pytest -q tests/test_hofm4_interaction.py
