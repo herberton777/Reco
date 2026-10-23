@@ -6,7 +6,7 @@ import sys
 import pytest
 
 from src.benchmark_registry import connect, leaderboard
-from src.hofm_experiments import attach_evaluation, list_attempts, run_trainer
+from src.hofm_experiments import attach_evaluation, list_attempts, register_existing, run_trainer
 
 
 def _fake_trainer(path, exit_code=0):
@@ -123,3 +123,29 @@ def test_existing_regularization_config_is_recorded(tmp_path, monkeypatch):
         run_trainer(db, script, ["--run-label", "fixture"])
         payload = db.execute("SELECT configuration_json FROM training_attempts").fetchone()[0]
         assert json.loads(payload)["regularization"]["bcd_dropout"] == 0.15
+
+def test_import_historical_checkpoint_without_guessing_training_history(tmp_path):
+    folder = tmp_path / "models/ml-32m/unified_hofm3_bcd/parent_old"
+    folder.mkdir(parents=True)
+    (folder / "regularization_config.json").write_text(
+        json.dumps({"factor_l2": 0.0025}), encoding="utf-8")
+    report = tmp_path / "report.json"
+    report.write_text(json.dumps(_evaluation()), encoding="utf-8")
+    with connect(tmp_path / "bench.sqlite") as db:
+        first = register_existing(db, folder, "old")
+        assert first == register_existing(db, folder, "old")
+        attempt = db.execute("SELECT * FROM training_attempts WHERE id=?", (first,)).fetchone()
+        assert attempt["status"] == "imported"
+        assert attempt["git_commit"] is None
+        assert attempt["exit_code"] is None
+        assert list_attempts(db)[0]["evaluation_count"] == 0
+        assert attach_evaluation(db, report, attempt_id=first)
+        assert list_attempts(db)[0]["evaluation_count"] == 1
+
+
+def test_empty_historical_folder_refused(tmp_path):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with connect(tmp_path / "bench.sqlite") as db:
+        with pytest.raises(ValueError, match="weights.pt"):
+            register_existing(db, empty, "old")
