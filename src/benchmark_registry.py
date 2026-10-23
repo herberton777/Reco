@@ -77,6 +77,31 @@ CREATE TABLE IF NOT EXISTS metrics (
 CREATE INDEX IF NOT EXISTS ix_runs_comparison
   ON runs(dataset_id, protocol_id, evaluation_split, source_type);
 CREATE INDEX IF NOT EXISTS ix_metrics_name ON metrics(metric, k);
+
+-- Training attempts are separate from evaluated benchmark runs. A successful
+-- process exit is not an accuracy result and must never enter the leaderboard.
+CREATE TABLE IF NOT EXISTS training_attempts (
+  id TEXT PRIMARY KEY,
+  model_id TEXT NOT NULL REFERENCES models(id),
+  dataset_id TEXT NOT NULL REFERENCES datasets(id),
+  run_label TEXT NOT NULL,
+  script_path TEXT NOT NULL,
+  command_json TEXT NOT NULL,
+  working_directory TEXT NOT NULL,
+  started_at_utc TEXT NOT NULL,
+  finished_at_utc TEXT,
+  status TEXT NOT NULL CHECK(status IN ('running','completed','failed','interrupted')),
+  exit_code INTEGER,
+  git_commit TEXT,
+  configuration_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS ix_training_attempts_label
+  ON training_attempts(dataset_id, run_label, started_at_utc);
+CREATE TABLE IF NOT EXISTS training_benchmarks (
+  attempt_id TEXT NOT NULL REFERENCES training_attempts(id) ON DELETE CASCADE,
+  benchmark_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+  PRIMARY KEY(attempt_id, benchmark_id)
+);
 """
 
 RATE_METRICS = {"ndcg", "recall", "precision", "map", "mrr", "hit_rate", "catalog_coverage"}
