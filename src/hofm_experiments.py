@@ -123,6 +123,42 @@ def run_trainer(db, script, trainer_args, model_id="hofm3_semi25_jointbcd",
     return exit_code
 
 
+def register_existing(db, directory, label, *, model_id="hofm3_semi25_jointbcd",
+                      dataset_id="ml-32m"):
+    """Register a preexisting checkpoint without claiming a verified training exit."""
+    directory = Path(directory).resolve()
+    if not directory.is_dir():
+        raise FileNotFoundError("Existing model directory not found: " + str(directory))
+    if not label or not label.replace("_", "").isalnum():
+        raise ValueError("Explicit --label must use only letters, digits or underscores")
+    if not ((directory / "weights.pt").is_file() or
+            (directory / "regularization_config.json").is_file()):
+        raise ValueError("Expected weights.pt or regularization_config.json in " + str(directory))
+    if not db.execute("SELECT 1 FROM models WHERE id=?", (model_id,)).fetchone():
+        raise ValueError("Unknown model id: " + model_id)
+    if not db.execute("SELECT 1 FROM datasets WHERE id=?", (dataset_id,)).fetchone():
+        raise ValueError("Unknown dataset id: " + dataset_id)
+    attempt_id = "imported-" + hashlib.sha256(
+        (str(directory) + "\\0" + label + "\\0" + model_id + "\\0" + dataset_id)
+        .encode("utf-8")).hexdigest()[:24]
+    config = {
+        "checkpoint_directory": str(directory),
+        "regularization": _load_regularization_config(directory),
+        "provenance": "Imported existing artifacts; original command, exit status and Git SHA unknown",
+    }
+    with db:
+        db.execute(
+            """INSERT OR IGNORE INTO training_attempts
+               (id,model_id,dataset_id,run_label,script_path,command_json,
+                working_directory,started_at_utc,finished_at_utc,status,configuration_json)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (attempt_id, model_id, dataset_id, label, "(historical; unknown)",
+             "[]", str(directory.parent), _utc_now(), _utc_now(), "imported",
+             json.dumps(config, sort_keys=True)),
+        )
+    return attempt_id
+
+
 def attach_evaluation(db, path, *, attempt_id=None, label=None):
     """Link a measured full-protocol report to a completed training attempt."""
     if bool(attempt_id) == bool(label):
@@ -137,8 +173,8 @@ def attach_evaluation(db, path, *, attempt_id=None, label=None):
             (label,)).fetchone()
     if attempt is None:
         raise ValueError("Training attempt not found")
-    if attempt["status"] != "completed":
-        raise ValueError("Only completed training attempts can have evaluations attached")
+    if attempt["status"] not in ("completed", "imported"):
+        raise ValueError("Only completed or imported training attempts can have evaluations attached")
     path = Path(path).resolve()
     raw = path.read_bytes()
     record = json.loads(raw)
@@ -192,6 +228,13 @@ def main(argv=None):
     run.add_argument("--dataset", default="ml-32m")
     run.add_argument("trainer_args", nargs=argparse.REMAINDER)
 
+    existing = sub.add_parser("register-existing", help="Index a historical checkpoint without rerunning it")
+    existing.add_argument("--db", type=Path, default=DEFAULT_DB)
+    existing.add_argument("--folder", type=Path, required=True)
+    existing.add_argument("--label", required=True)
+    existing.add_argument("--model-id", default="hofm3_semi25_jointbcd")
+    existing.add_argument("--dataset", default="ml-32m")
+
     attach = sub.add_parser("attach", help="Attach a measured evaluation JSON report")
     attach.add_argument("--db", type=Path, default=DEFAULT_DB)
     selector = attach.add_mutually_exclusive_group(required=True)
@@ -210,6 +253,9 @@ def main(argv=None):
                 code = run_trainer(db, args.script, args.trainer_args,
                                    model_id=args.model_id, dataset_id=args.dataset)
                 return code
+            if args.command == "register-existing":
+                print("Registered existing checkpoint:", register_existing(
+                    db, args.folder, args.label, model_id=args.model_id, dataset_id=args.dataset))
             if args.command == "attach":
                 print("Linked benchmark:", attach_evaluation(
                     db, args.report, attempt_id=args.attempt_id, label=args.label))
