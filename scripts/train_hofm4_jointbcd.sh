@@ -99,9 +99,11 @@ python -c 'import torch; from temporal_fm import unified_hofm3_bcd'
 # The HOFM4 model class has a standalone algebra/gradient test.
 python fast_unified_hofm4.py --self-test
 mkdir -p "$(dirname "$out")" "$(dirname "$log")"
-# Claim unique directory. This also ensures accidental duplicate launches
-# cannot simultaneously replace the same experiment.
-mkdir "$out" || { echo "Checkpoint label already reserved" >&2; exit 3; }
+# Claim a separate launch lock while leaving the new checkpoint
+# directory absent: the Python launcher refuses to overwrite existing runs.
+lock="${out}.launch_lock"
+mkdir "$lock" || { echo "Checkpoint label already reserved" >&2; exit 3; }
+trap 'rmdir "$lock" 2>/dev/null || true' EXIT
 
 export OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 OPENBLAS_NUM_THREADS=1 PYTHONUNBUFFERED=1
 "${cmd[@]}" 2>&1 | tee "$log"
