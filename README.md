@@ -79,6 +79,25 @@ A saved checkpoint or process exit never creates an invented NDCG score.
 
 See [HOFM experiment tracking](docs/HOFM_EXPERIMENT_TRACKING.md).
 
+### Full MovieLens 32M film-title and tag Sentence Transformer embeddings
+
+A streaming, timestamp-safe encoder can embed **every movie title** and every
+**distinct normalized user-generated tag phrase** with Sentence Transformers.
+It stores `movie_ids.npy`, normalized title/tag vectors, a timestamped
+SQLite tag-event index and a manifest. Movie-tag representations require
+an explicit historical cutoff, preventing future tags from leaking into
+past ranking evaluations.
+
+```bash
+python -m pip install sentence-transformers
+python -m src.encode_ml32m_text encode --data-dir data/ml-32m \
+  --output artifacts/semantic/ml32m_minilm_full_v1
+```
+
+See [Full-catalog MovieLens 32M text embeddings](docs/ML32M_SENTENCE_EMBEDDINGS.md)
+for reproducible training-safe features, time-filtered tag pooling,
+larger model variants and how to align movie IDs.
+
 ### HOFM4 + JointBCD: true fourth-order factorization
 
 `fast_unified_hofm4.py` extends the pretrained HOFM3/JointBCD model with a
