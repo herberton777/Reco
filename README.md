@@ -163,6 +163,30 @@ patches and pretrained parent checkpoint in your Codespace. See the
 [80-epoch recipe](docs/AGGRESSIVE_HOFM3_80_EPOCHS.md) for hyperparameter
 deltas and safety notes. It does not claim to improve NDCG before evaluation.
 
+### Top-model LambdaRank experiment (JSON-first)
+
+Run an audited ranking ablation across the best available **HOFM4 + JointBCD,
+HOFM3 + JointBCD, BPR, Temporal FM**, and optional DeepFM/semantic frozen
+prediction columns. It compares each base model, single-score LambdaRank,
+stacked LambdaRank, per-query z-score fusion and reciprocal-rank fusion,
+then selects the winner **on validation only** and estimates a paired
+held-out query-bootstrap NDCG@10 difference.
+
+```bash
+python -m src.lambdarank_top_models audit
+python -m src.lambdarank_top_models run --dry-run
+python -m src.lambdarank_top_models run \
+  --output artifacts/rerank/top_models_v1
+```
+
+This requires **real frozen score exports** for the same MovieLens 32M
+query/item candidates and an honest chronological evaluation manifest;
+it does not create scores from the Codespace-only research checkpoint
+patches. Results stay in **JSON for Reco Studio**, no SQLite required.
+Existing training runs and checkpoints are preserved.
+
+[Top-model LambdaRank experiment](docs/TOP_MODELS_LAMBDARANK.md)
+
 ### LambdaRank reranking for MovieLens 32M
 
 A standalone **LightGBM LambdaRank** stage accepts frozen `score_*`
