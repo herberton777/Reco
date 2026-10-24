@@ -189,6 +189,29 @@ def comparable_records(reports):
                     "Model": str(model.get("name") or model.get("id") or "Unknown"),
                     "Metric": metric, "Score": value, "JSON": path_string,
                 })
+        elif kind == "top_models":
+            # The complete model/fusion/reranker ablation is comparable
+            # *within this same JSON*. Do not pool with unrelated runs.
+            audit = payload.get("audit", {})
+            dataset = audit.get("dataset", {})
+            dataset_name = dataset.get("id", "Unknown") if isinstance(dataset, dict) else "Unknown"
+            protocol = audit.get("protocol", {})
+            protocol_name = protocol.get("id", "Undocumented") if isinstance(protocol, dict) else "Undocumented"
+            for variant in payload["variants"]:
+                if not isinstance(variant, dict):
+                    continue
+                for split in ("validation", "test"):
+                    metrics = variant.get(split, {})
+                    if not isinstance(metrics, dict):
+                        continue
+                    for metric, score in _metric_values(metrics).items():
+                        rows.append({
+                            "Dataset": str(dataset_name), "Protocol": str(protocol_name),
+                            "Split": split, "Provenance": "measured",
+                            "Scope": path_string + "|" + split,
+                            "Model": str(variant.get("variant", "Unknown")),
+                            "Metric": metric, "Score": score, "JSON": path_string,
+                        })
         elif kind == "rerank_summary":
             manifest = payload.get("manifest", {})
             manifest = manifest if isinstance(manifest, dict) else {}
