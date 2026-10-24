@@ -20,7 +20,7 @@ from .reco_studio_data import (
     training_configuration,
 )
 from .reco_visual_data import (
-    metric_frame, sample_umap_source, umap_projection,
+    metric_frame, sample_umap_source, umap_projection, pca_projection,
 )
 
 
@@ -305,7 +305,7 @@ def show_retrieval():
 
 
 def show_umap(engine):
-    st.header("Movie embeddings: UMAP")
+    st.header("Movie embeddings: UMAP / PCA")
     st.write(
         "Interactive genre-colored movie maps. Choose SVD collaborative item "
         "factors or sentence embeddings from your saved recommender and MovieLens 32M cache."
@@ -344,9 +344,13 @@ def show_umap(engine):
         )
     with selector[2]:
         neighbors = st.slider("Neighbors", 5, 60, 20, 5, key="studio_umap_neighbors")
+    method = st.radio(
+        "Projection method", ["UMAP", "PCA"], horizontal=True,
+        key="studio_projection_method",
+    )
     seed = 42
-    settings = (source, n, neighbors, seed)
-    if st.button("Generate genre-colored UMAP", key="studio_umap_run"):
+    settings = (source, n, neighbors if method == "UMAP" else None, seed, method)
+    if st.button("Generate genre-colored projection", key="studio_umap_run"):
         try:
             with st.spinner("Projecting movie embeddings …"):
                 cache = (SEMANTIC_CACHE_1M
@@ -356,9 +360,10 @@ def show_umap(engine):
                     source, engine=engine, cache_dir=cache,
                     count=n, seed=seed,
                 )
-                data = umap_projection(
+                data = (umap_projection(
                     vectors, metadata, n_neighbors=neighbors, seed=seed,
-                )
+                ) if method == "UMAP" else
+                    pca_projection(vectors, metadata, seed=seed))
                 st.session_state["studio_umap_result"] = {
                     "settings": settings, "data": data,
                 }
@@ -367,27 +372,28 @@ def show_umap(engine):
     saved = st.session_state.get("studio_umap_result")
     if not saved or saved["settings"] != settings:
         st.caption(
-            "Click Generate to compute a real UMAP projection. "
+            "Click Generate to compute a real UMAP or PCA projection. "
             "Projection distances are not measured recommendation performance."
         )
         return
     data = saved["data"]
+    x_axis, y_axis = f"{method} 1", f"{method} 2"
     if not data.empty:
         chart = alt.Chart(data).mark_circle(size=50, opacity=0.70).encode(
-            x=alt.X("UMAP 1:Q", scale=alt.Scale(zero=False)),
-            y=alt.Y("UMAP 2:Q", scale=alt.Scale(zero=False)),
+            x=alt.X(f"{x_axis}:Q", scale=alt.Scale(zero=False)),
+            y=alt.Y(f"{y_axis}:Q", scale=alt.Scale(zero=False)),
             color=alt.Color("Primary genre:N"),
             tooltip=["title:N", alt.Tooltip("movieId:Q", format="d"), "genres:N"],
         ).properties(height=610).interactive()
         st.altair_chart(chart, use_container_width=True)
     st.dataframe(
-        data[["movieId", "title", "genres", "UMAP 1", "UMAP 2"]],
+        data[["movieId", "title", "genres", x_axis, y_axis]],
         use_container_width=True, hide_index=True,
     )
     st.download_button(
-        "Export UMAP movie coordinates as JSON",
+        "Export movie coordinates as JSON",
         data=data.to_json(orient="records", indent=2),
-        file_name="reco_umap_map.json", mime="application/json",
+        file_name=f"reco_{method.lower()}_map.json", mime="application/json",
     )
     st.caption(
         "Full embedding arrays are preserved; only the visualization sample "
