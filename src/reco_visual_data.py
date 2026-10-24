@@ -28,6 +28,7 @@ def available_json_reports(root="artifacts", maximum=200):
         "benchmarks/*.json",
         "rerank/*/report*.json",
         "rerank/*/summary.json",
+        "rerank/*/top_models_analysis.json",
         "training_logs/*.json",
     )
     for pattern in patterns:
@@ -51,6 +52,10 @@ def read_ranking_json(path):
         return "evaluation", payload
     if isinstance(payload.get("variants"), dict):
         return "rerank_summary", payload
+    if (payload.get("status") == "COMPLETED_WITH_MEASURED_SCORES"
+            and isinstance(payload.get("variants"), list)
+            and isinstance(payload.get("audit"), dict)):
+        return "top_models", payload
     raise ValueError("JSON does not contain a recognized measured ranking report")
 
 
@@ -68,6 +73,13 @@ def metric_frame(kind, payload, split="test"):
         name = (model.get("name", model.get("id", "Model"))
                 if isinstance(model, dict) else str(model))
         return pd.DataFrame([{"Model": name, **payload["metrics"]}])
+    if kind == "top_models":
+        rows = []
+        for variant in payload["variants"]:
+            if isinstance(variant, dict) and isinstance(variant.get(split), dict):
+                rows.append({"Model": str(variant.get("variant", "Unknown")),
+                             **variant[split]})
+        return pd.DataFrame(rows)
     if kind == "rerank_summary":
         rows = []
         for model_name, report in payload["variants"].items():
