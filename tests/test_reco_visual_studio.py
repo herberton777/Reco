@@ -23,6 +23,10 @@ def test_missing_models_and_database_still_show_recommender_ui(tmp_path, monkeyp
     monkeypatch.chdir(tmp_path)
     app = AppTest.from_file(APP, default_timeout=30).run()
     assert not app.exception
+    assert len(app.sidebar.radio) == 1
+    assert app.sidebar.radio[0].value == "Overview"
+    app.sidebar.radio[0].set_value("Recommender").run()
+    assert not app.exception
     assert len(app.tabs) == 5
     assert [t.label for t in app.tabs] == [
         "Recommendations", "Choose favorites", "UMAP movie map",
