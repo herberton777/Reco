@@ -18,11 +18,11 @@ from src.reco_visual_data import (
     sample_umap_source, umap_projection,
 )
 
-st.set_page_config(page_title="Reco · Movie Recommender", page_icon="🎬", layout="wide")
-st.title("🎬 Reco · Movie Recommender")
+st.set_page_config(page_title="Reco Studio · MovieLens Research Lab", page_icon="🎬", layout="wide")
+st.title("🎬 Reco Studio")
 st.caption(
-    "Interactive recommendations · movie embedding UMAP · JSON ranking reports"
-    " · MovieLens / GroupLens"
+    "MovieLens research workbench · recommendations · model comparisons · "
+    "training · retrieval · UMAP · checkpoint explorer · JSON results"
 )
 
 ARTIFACT = Path("artifacts/recommender.joblib")
@@ -43,6 +43,33 @@ if ARTIFACT.exists():
         engine = load_engine(str(ARTIFACT))
     except Exception as exc:
         engine_failure = str(exc)
+
+# Keep recommendations as the original five-tab view; expose the
+# much broader research lab via a mobile-friendly single sidebar selector.
+# All pages use existing JSON, log, embedding, or checkpoint files only.
+pages = [
+    "Overview", "Recommender", "Model comparisons", "Training analytics",
+    "Retrieval & LambdaRank", "Movie search", "UMAP explorer",
+    "Checkpoint explorer", "JSON reports", "Methodology",
+]
+st.sidebar.title("Reco Studio")
+page = st.sidebar.radio("Workspace", pages, index=0)
+st.sidebar.caption("JSON-first research · no benchmark database required")
+if page != "Recommender":
+    from src import reco_studio_pages as pages_ui
+    handlers = {
+        "Overview": lambda: pages_ui.show_overview(engine),
+        "Model comparisons": pages_ui.show_comparisons,
+        "Training analytics": pages_ui.show_training,
+        "Retrieval & LambdaRank": pages_ui.show_retrieval,
+        "Movie search": pages_ui.show_movie_search,
+        "UMAP explorer": lambda: pages_ui.show_umap(engine),
+        "Checkpoint explorer": pages_ui.show_checkpoints,
+        "JSON reports": pages_ui.show_json_explorer,
+        "Methodology": pages_ui.show_methods,
+    }
+    handlers[page]()
+    st.stop()
 
 recs_tab, favorites_tab, map_tab, results_tab, methodology_tab = st.tabs([
     "Recommendations", "Choose favorites", "UMAP movie map",
