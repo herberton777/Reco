@@ -198,3 +198,20 @@ def umap_projection(matrix, info, *, n_neighbors=20, min_dist=0.1, seed=42):
     output["Primary genre"] = output["genres"].fillna("").astype(str).str.split("|").str[0]
     output["Primary genre"] = output["Primary genre"].replace({"": "Unknown", "(no genres listed)": "Unknown"})
     return output
+
+
+def pca_projection(matrix, info, *, seed=42):
+    """Two-dimensional PCA as an optional, deterministic UMAP alternative."""
+    from sklearn.decomposition import PCA
+    if len(matrix) != len(info) or len(matrix) < 10:
+        raise ValueError("Invalid PCA data alignment")
+    if np.asarray(matrix).ndim != 2 or np.asarray(matrix).shape[1] < 2:
+        raise ValueError("PCA needs at least two embedding dimensions")
+    reducer = PCA(n_components=2, svd_solver="randomized", random_state=int(seed))
+    positions = reducer.fit_transform(np.asarray(matrix, dtype="float32"))
+    output = info.reset_index(drop=True).copy()
+    output["PCA 1"] = positions[:, 0]
+    output["PCA 2"] = positions[:, 1]
+    output["Primary genre"] = output["genres"].fillna("").astype(str).str.split("|").str[0]
+    output["Primary genre"] = output["Primary genre"].replace({"": "Unknown", "(no genres listed)": "Unknown"})
+    return output
