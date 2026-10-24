@@ -1,0 +1,2 @@
+-r requirements.txt
+umap-learn>=0.5.6,<1
