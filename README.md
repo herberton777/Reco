@@ -9,24 +9,33 @@
 >
 > **Experimental work:** TIGER-style generative retrieval, MovieLens 1M/32M preprocessing, temporal FM/DeepFM, BPR ranking and LambdaMART reranking are preserved as **versioned prototype patch archives** under 'research-patches/'. These are research iterations, not yet a fully integrated, CI-verified install. See [Research status](docs/RESEARCH_STATUS.md). Please do not compare metrics across their different evaluation protocols.
 
-## Recommender studio (JSON + UMAP)
+## Reco Studio — full JSON-first research application
 
-The **default UI is the recommender system**, not the experiment database.
-Run `streamlit run app.py --server.port 8501` for known-user and
-favorite-based movie recommendations, a UMAP movie-embedding map (including
-MovieLens 32M semantic embeddings), and JSON ranking reports.
+The **default application is the comprehensive MovieLens research studio**,
+not the SQLite database dashboard. Its mobile-friendly sidebar has:
+
+**Overview, Recommender, Model comparisons, Training analytics, Retrieval &
+LambdaRank, Movie search, UMAP explorer, Checkpoint explorer, JSON reports,
+and Methodology.**
 
 ```bash
 python -m pip install -r requirements-umap.txt
 streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 ```
 
-The recommender uses `artifacts/recommender.joblib`; benchmarks use
-`artifacts/metrics.json` and experiment report JSON files. No SQLite
-database is needed to open the studio. See the
-[recommender/UMAP guide](docs/RECOMMENDER_JSON_UMAP.md).
-Existing database files and advanced checkpoints are **preserved**, not
-deleted; the separate database dashboard remains optional.
+It browses **real JSON evaluations**, saved model weights/configurations,
+epoch training logs, the full MovieLens 32M title/genre catalog and
+existing sentence embedding caches. JSON comparisons separate dataset,
+protocol, candidate pool and held-out split; absent scores are never
+fabricated. The existing latest-small recommender still serves personalized
+recommendations and cold-start favorites if its trusted joblib is present.
+
+**No database is needed** for the main app. The historical SQLite registry
+and separate benchmark dashboard are retained as optional archival tools,
+not the main user interface. All checkpoint and JSON files are preserved.
+
+[Full Reco Studio guide](docs/FULL_RECO_STUDIO.md) ·
+[Recommender / UMAP guide](docs/RECOMMENDER_JSON_UMAP.md)
 
 ## Quick start: reproducible MovieLens Small baseline
 
@@ -109,7 +118,7 @@ past ranking evaluations.
 
 ```bash
 python -m pip install sentence-transformers
-python -m src.encode_ml32m_text encode --data-dir data/ml-32m \
+python -m src.encode_ml32m_text encode --data-dir data/raw/ml-32m \
   --output artifacts/semantic/ml32m_minilm_full_v1
 ```
 
@@ -194,7 +203,9 @@ See [Model card](reports/MODEL_CARD.md) and [Research status](docs/RESEARCH_STAT
 ## Repository layout
 
 ```text
-app.py                    Streamlit known-user, cold-start, baseline demo
+app.py                    JSON-first full Streamlit Reco Studio (port 8501)
+src/reco_studio_pages.py  Research views, training, comparisons, UMAP, checkpoints
+src/reco_studio_data.py   Safe read-only JSON, log and checkpoint inventory
 benchmark_dashboard.py    Read-only SQLite experiment leaderboard UI
 src/                      Reproducible MovieLens Small implementations
 tests/                    Data-free synthetic regression tests
