@@ -171,3 +171,39 @@ def test_studio_pages_render_without_sqlite_or_training(tmp_path, monkeypatch, p
     app.sidebar.radio[0].set_value(page).run()
     assert not app.exception
     assert not (tmp_path / "artifacts/benchmarks.sqlite").exists()
+
+
+def test_pca_projection_keeps_movie_ids_and_genre_labels():
+    import numpy as np
+    from src.reco_visual_data import pca_projection
+    rng = np.random.default_rng(42)
+    info = pd.DataFrame({
+        "movieId": range(10), "title": [f"Movie {i}" for i in range(10)],
+        "genres": ["Drama|Comedy"] * 10,
+    })
+    result = pca_projection(rng.normal(size=(10, 6)).astype("float32"), info)
+    assert list(result["movieId"]) == list(range(10))
+    assert (result["Primary genre"] == "Drama").all()
+    assert list(result.columns)[-3:] == ["PCA 1", "PCA 2", "Primary genre"]
+
+
+def test_saved_movielens_1m_vectors_supported(tmp_path):
+    import numpy as np
+    from src.reco_visual_data import sample_umap_source
+    folder = tmp_path / "ml1m"
+    folder.mkdir()
+    np.save(folder / "movie_ids.npy", np.arange(1, 12))
+    np.save(folder / "title_embeddings.npy", np.eye(11, 6))
+    movie_file = tmp_path / "movies.csv"
+    pd.DataFrame({
+        "movieId": range(1, 12),
+        "title": [f"Film {i}" for i in range(1, 12)],
+        "genres": ["Action"] * 11,
+    }).to_csv(movie_file, index=False)
+    x, movies = sample_umap_source(
+        "MovieLens 1M title sentence embeddings",
+        cache_dir=folder, count=11, movie_files=[movie_file],
+    )
+    assert x.shape == (11, 6)
+    assert movies.iloc[0]["title"] == "Film 1"
+    assert movies.iloc[-1]["movieId"] == 11
