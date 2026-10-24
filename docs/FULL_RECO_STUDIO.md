@@ -30,7 +30,7 @@ The sidebar has ten research workspaces:
 | Training analytics | Existing epoch logs, explicit training loss and validation ranking metrics vs epoch, raw log inspection and JSON export |
 | Retrieval & LambdaRank | Recall@200/500/1000 if measured, ranked/retrieval scores from JSON, saved LambdaRank feature importance, training command reference |
 | Movie search | Find titles/genres across the actual ML-32M movie catalog and, with embeddings, cosine nearest-neighbor discovery |
-| UMAP explorer | Interactive genre-colored SVD/semantic/movie-sentence maps, deterministic 250–10,000 film sample, title tooltips and export |
+| UMAP explorer | Interactive genre-colored UMAP **or PCA** from saved latest-small, MovieLens 1M or 32M embeddings, deterministic 250–10,000 film sample, title tooltips and JSON export |
 | Checkpoint explorer | Read-only inventory of actual PyTorch/joblib files and saved training configuration JSON; no unsafe deserialization |
 | JSON reports | Original baseline metrics.json, evaluation report JSON and rerank summary JSON, interactive comparison tables, optional JSON file upload |
 | Methodology | Historical negative-sampling, time cutoff and dataset-split caveats and supported architecture families |
@@ -67,7 +67,7 @@ python -m src.train
 This baseline trains on the latest-small MovieLens dataset. It is **not**
 the patch-based 32M HOFM3 or HOFM4 research model.
 
-### 32M embedding UMAP and similar movies
+### 1M/32M embedding UMAP, PCA and similar movies
 
 ```bash
 python -m pip install sentence-transformers
@@ -79,8 +79,10 @@ python -m src.encode_ml32m_text encode \
 
 This is needed only if you have not already completed encoding. The
 studio loads your existing vectors when present and never re-encodes
-automatically. UMAP computation samples a subset to remain responsive;
-the underlying embedding cache stays complete.
+automatically. The **1M** semantic representation is also supported when
+`artifacts/semantic/ml1m_minilm_full_v1/{movie_ids,title_embeddings}.npy`
+exists; missing sources are simply not listed. UMAP/PCA computation samples a
+subset to remain responsive; underlying embedding caches stay complete.
 
 ### Evaluation boundaries and research limitations
 
