@@ -25,6 +25,7 @@ from .reco_visual_data import (
 
 
 SEMANTIC_CACHE = Path("artifacts/semantic/ml32m_minilm_full_v1")
+SEMANTIC_CACHE_1M = Path("artifacts/semantic/ml1m_minilm_full_v1")
 DATA_MOVIES = [
     Path("data/raw/ml-32m/movies.csv"),
     Path("data/temporal/ml-32m/movies.csv"),
@@ -317,6 +318,9 @@ def show_umap(engine):
     if ((SEMANTIC_CACHE / "movie_ids.npy").is_file()
             and (SEMANTIC_CACHE / "title_embeddings.npy").is_file()):
         sources.append("MovieLens 32M title sentence embeddings")
+    if ((SEMANTIC_CACHE_1M / "movie_ids.npy").is_file()
+            and (SEMANTIC_CACHE_1M / "title_embeddings.npy").is_file()):
+        sources.append("MovieLens 1M title sentence embeddings")
     if not sources:
         st.info(
             "No movie vectors yet. Encode MovieLens 32M titles or train "
@@ -345,8 +349,11 @@ def show_umap(engine):
     if st.button("Generate genre-colored UMAP", key="studio_umap_run"):
         try:
             with st.spinner("Projecting movie embeddings …"):
+                cache = (SEMANTIC_CACHE_1M
+                         if source.startswith("MovieLens 1M")
+                         else SEMANTIC_CACHE)
                 vectors, metadata = sample_umap_source(
-                    source, engine=engine, cache_dir=SEMANTIC_CACHE,
+                    source, engine=engine, cache_dir=cache,
                     count=n, seed=seed,
                 )
                 data = umap_projection(
