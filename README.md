@@ -9,6 +9,25 @@
 >
 > **Experimental work:** TIGER-style generative retrieval, MovieLens 1M/32M preprocessing, temporal FM/DeepFM, BPR ranking and LambdaMART reranking are preserved as **versioned prototype patch archives** under 'research-patches/'. These are research iterations, not yet a fully integrated, CI-verified install. See [Research status](docs/RESEARCH_STATUS.md). Please do not compare metrics across their different evaluation protocols.
 
+## Recommender studio (JSON + UMAP)
+
+The **default UI is the recommender system**, not the experiment database.
+Run `streamlit run app.py --server.port 8501` for known-user and
+favorite-based movie recommendations, a UMAP movie-embedding map (including
+MovieLens 32M semantic embeddings), and JSON ranking reports.
+
+```bash
+python -m pip install -r requirements-umap.txt
+streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+```
+
+The recommender uses `artifacts/recommender.joblib`; benchmarks use
+`artifacts/metrics.json` and experiment report JSON files. No SQLite
+database is needed to open the studio. See the
+[recommender/UMAP guide](docs/RECOMMENDER_JSON_UMAP.md).
+Existing database files and advanced checkpoints are **preserved**, not
+deleted; the separate database dashboard remains optional.
+
 ## Quick start: reproducible MovieLens Small baseline
 
 Use Python 3.12; a GitHub Codespace works without a local installation.
