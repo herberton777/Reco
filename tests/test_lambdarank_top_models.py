@@ -153,7 +153,7 @@ def test_top_models_end_to_end_train_writes_genuine_json(tmp_path):
     args.dry_run = False
     output = run(args)
     assert output["status"] == "COMPLETED_WITH_MEASURED_SCORES"
-    assert len(output["variants"]) == 8  # 3 frozen, zmean, rrf, 3 LTR + ensemble = 9
+    assert len(output["variants"]) == 9  # 3 frozen + 2 fusions + 3 single LTR + ensemble
     assert (tmp_path / "experiment" / "summary.json").is_file()
     assert (tmp_path / "experiment" / "top_models_analysis.json").is_file()
     assert (tmp_path / "experiment" / "report_lambdarank_ensemble.json").is_file()
