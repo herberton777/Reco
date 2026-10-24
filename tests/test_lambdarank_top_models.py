@@ -164,3 +164,37 @@ def test_top_models_end_to_end_train_writes_genuine_json(tmp_path):
     }
     with pytest.raises(FileExistsError, match="Previous experiment exists"):
         run(args)
+
+
+def test_top_model_analysis_is_visible_in_json_first_studio(tmp_path):
+    from src.reco_visual_data import read_ranking_json, metric_frame
+    from src.reco_studio_data import discover_reports, comparable_records
+    folder = tmp_path / "artifacts" / "rerank" / "top_models_v1"
+    folder.mkdir(parents=True)
+    report = {
+        "status": "COMPLETED_WITH_MEASURED_SCORES",
+        "audit": {
+            "dataset": {"id": "ml-32m"},
+            "protocol": {"id": "synthetic-fixed-candidates"},
+        },
+        "variants": [
+            {"variant": "frozen_hofm3", "validation": {"ndcg@10": .15},
+             "test": {"ndcg@10": .13}},
+            {"variant": "lambdarank_ensemble", "validation": {"ndcg@10": .17},
+             "test": {"ndcg@10": .14}},
+            {"variant": "zmean", "validation": {"ndcg@10": .16},
+             "test": {"ndcg@10": .135}},
+        ],
+    }
+    filename = folder / "top_models_analysis.json"
+    filename.write_text(json.dumps(report), encoding="utf-8")
+    kind, loaded = read_ranking_json(filename)
+    assert kind == "top_models"
+    visible = metric_frame(kind, loaded, "test")
+    assert list(visible.Model) == [
+        "frozen_hofm3", "lambdarank_ensemble", "zmean",
+    ]
+    found = discover_reports(tmp_path / "artifacts")
+    rows = comparable_records(found)
+    assert len(rows[(rows["Metric"] == "ndcg@10") & (rows["Split"] == "test")]) == 3
+    assert rows["Scope"].nunique() == 2  # one per validation/test split
