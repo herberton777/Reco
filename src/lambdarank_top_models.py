@@ -292,6 +292,16 @@ def run(args):
     uncertainty = bootstrap_delta(
         test, test_winner, base_test, args.k, repeats=args.bootstrap, seed=args.seed,
     )
+    import lightgbm as lgb
+    stacked_booster = lgb.Booster(
+        model_file=str(output / "lambdarank_ensemble.txt"))
+    stacked_gain = {
+        str(feature): float(value)
+        for feature, value in zip(
+            stacked_booster.feature_name(),
+            stacked_booster.feature_importance(importance_type="gain"),
+        )
+    }
     outcome = {
         "status": "COMPLETED_WITH_MEASURED_SCORES",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -300,6 +310,8 @@ def run(args):
         "best_frozen_reference_on_validation": reference,
         "compared_against": "exact same query/item candidate sets",
         "measured_test_delta_vs_frozen": uncertainty,
+        "feature_importances": stacked_gain,
+        "feature_importance_type": "LightGBM gain, trained stacked LambdaRank",
         "audit": snapshot,
         "variants": rows,
         "files": {
